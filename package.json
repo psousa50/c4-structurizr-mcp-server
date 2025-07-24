@@ -1,0 +1,26 @@
+{
+  "name": "c4-structurizr-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP Server for C4 Structurizr DSL validation and tooling",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "prebuild": "npm run grammar",
+    "build": "tsc && cp src/parser/generated.js dist/parser/",
+    "dev": "tsc --watch",
+    "start": "node dist/server.js",
+    "grammar": "peggy src/parser/grammar.pegjs -o src/parser/generated.js --format es"
+  },
+  "keywords": ["mcp", "c4", "structurizr", "dsl", "architecture"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "peggy": "^4.0.3",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
