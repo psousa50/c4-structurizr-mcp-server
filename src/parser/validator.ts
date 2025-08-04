@@ -2,6 +2,8 @@ import { parse } from './generated.js';
 import type { ValidationResult, ParseError, Workspace, Element } from '../types.js';
 
 export class DSLValidator {
+  private allRelationships: any[] = [];
+
   validate(content: string): ValidationResult {
     const errors: ParseError[] = [];
     const warnings: ParseError[] = [];
@@ -92,6 +94,38 @@ export class DSLValidator {
     return ids;
   }
 
+  private collectAllRelationships(workspace: any): any[] {
+    const relationships: any[] = [];
+    
+    const collectFromModel = (model: any) => {
+      if (model?.relationships) {
+        relationships.push(...model.relationships);
+      }
+      
+      if (model?.elements) {
+        for (const element of model.elements) {
+          if (element.children?.relationships) {
+            relationships.push(...element.children.relationships);
+          }
+          
+          if (element.children?.elements) {
+            for (const child of element.children.elements) {
+              if (child.children?.relationships) {
+                relationships.push(...child.children.relationships);
+              }
+            }
+          }
+        }
+      }
+    };
+
+    if (workspace.model) {
+      collectFromModel(workspace.model);
+    }
+
+    return relationships;
+  }
+
   private validateUniqueIdentifiers(workspace: any, errors: ParseError[]): void {
     const seenIds = new Map<string, any>();
     
@@ -121,6 +155,8 @@ export class DSLValidator {
   }
 
   private validateRelationshipReferences(workspace: any, elementIds: Set<string>, errors: ParseError[]): void {
+    // Store relationships for later use in dynamic step validation
+    this.allRelationships = this.collectAllRelationships(workspace);
     const checkRelationships = (relationships: any[]) => {
       if (!relationships) return;
       
@@ -201,7 +237,76 @@ export class DSLValidator {
       
       validateElementRefs(view.include, 'include');
       validateElementRefs(view.exclude, 'exclude');
+      
+      // Validate dynamic view steps
+      if (view.type === 'dynamic' && view.steps) {
+        this.validateDynamicSteps(view.steps, elementIds, errors);
+      }
     }
+  }
+
+  private validateDynamicSteps(steps: any[], elementIds: Set<string>, errors: ParseError[]): void {
+    if (!steps) return;
+    
+    for (const step of steps) {
+      // Validate that source element exists
+      if (!elementIds.has(step.source)) {
+        errors.push({
+          message: `Dynamic step references undefined source element '${step.source}'`,
+          location: step.location
+        });
+        continue;
+      }
+      
+      // Validate that destination element exists
+      if (!elementIds.has(step.destination)) {
+        errors.push({
+          message: `Dynamic step references undefined destination element '${step.destination}'`,
+          location: step.location
+        });
+        continue;
+      }
+      
+      // Check if a valid relationship path exists between source and destination
+      if (!this.hasValidRelationshipPath(step.source, step.destination)) {
+        errors.push({
+          message: `A relationship between ${this.getElementDisplayName(step.source)} and ${this.getElementDisplayName(step.destination)} does not exist in model`,
+          location: step.location
+        });
+      }
+    }
+  }
+
+  private hasValidRelationshipPath(source: string, destination: string): boolean {
+    // Check if there's a direct static relationship
+    if (this.hasDirectRelationship(source, destination)) {
+      return true;
+    }
+    
+    // Check for implicit relationships (e.g., person -> software system -> container)
+    if (this.hasImplicitRelationship(source, destination)) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  private hasDirectRelationship(source: string, destination: string): boolean {
+    return this.allRelationships.some(rel => 
+      rel.source === source && rel.destination === destination
+    );
+  }
+
+  private hasImplicitRelationship(source: string, destination: string): boolean {
+    // This would check for implicit relationships like person -> container within software system
+    // For now, return false to match official Structurizr strict behavior
+    return false;
+  }
+
+  private getElementDisplayName(elementId: string): string {
+    // This would map element IDs to their display names
+    // For now, just capitalize the first letter and add spaces before capitals
+    return elementId.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
   }
 
   private validateBestPractices(workspace: any, warnings: ParseError[]): void {

@@ -5,7 +5,9 @@
       "Bash(npm install)",
       "Bash(mkdir:*)",
       "Bash(npm run build:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "mcp__c4-structurizr__validate-dsl",
+      "mcp__c4-structurizr__analyze-model"
     ],
     "deny": []
   }
